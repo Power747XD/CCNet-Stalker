@@ -1,0 +1,26 @@
+{
+    "modules":{
+        "player_detector":
+        {
+            "enabled":true
+        },
+
+
+
+
+
+        "movecraft_spotter":
+        {
+            "__comment":"TODO",
+            "enabled":true,
+            "target":"ALL"
+        },
+        "player_movement_logger":
+        {
+            "__comment":"TODO",
+            "enabled":true
+            
+        }
+
+    }
+}
