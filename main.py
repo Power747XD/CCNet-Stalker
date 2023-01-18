@@ -51,7 +51,7 @@ def filter_players_from_data(data):
 # Q: Why are fetch_dynmap_data() and strip_dynmap_data() different functions?
 # A: Data stripped by strip_dynmap_data() might me useful in the future for features not yet designed.
 
-def check_for_detected_players(player_data, tracked_players, boundaries):
+def check_for_players_in_boundaries(player_data, tracked_players, boundaries):
     for name in player_data["players"]:
         if player_data["players"][name] != None and name in tracked_players:
             for boundary in boundaries:
@@ -59,10 +59,23 @@ def check_for_detected_players(player_data, tracked_players, boundaries):
                 upper_border = boundary["upper_left_corner"]["z"]
                 right_border = boundary["lower_right_corner"]["x"]
                 lower_border = boundary["lower_right_corner"]["z"]
-                border_type = boundary["type"]
+                #border_type = boundary["type"]
                 if left_border <= player_data["players"][name]["x"] <= right_border and upper_border <= player_data["players"][name]["z"] <= lower_border:
                     print("Player " + name + " has been detected in boundary " + boundary["name"] + " at coordinates " + str(player_data["players"][name]))
 
+def check_for_sky_players(player_data, y_threshold, tracked_players=None):
+    '''Detects player above a config-specified height coordinate.
+    
+    The sky_player_detector has two types of targets:
+    "ALL" reports ALL players above y_threshold;
+    "WHITELIST" reports ONLY players specified in players.json
+    '''
+    for name in player_data["players"]:
+        if player_data["players"][name] == None:
+            continue
+        if player_data["players"][name]["y"] >= y_threshold:
+            if tracked_players == None or name in tracked_players:
+                print(name, player_data["players"]["name"])
 
 def initialize_settings():
     with open("config/settings.json", "r") as settings:
@@ -78,22 +91,40 @@ def initialize_players():
 
 def main():
 
+    #Initialization phase
+
     settings = initialize_settings()
+
+    #TODO: Accept keyword arguments
 
     if settings["modules"]["player_detector"]["enabled"]:
         tracked_players = initialize_players()
         boundaries = initialize_boundaries()
+
+    if settings["modules"]["sky_players_detector"]["enabled"]:
+        y_threshold = settings["modules"]["sky_players_detector"]["y_threshold"]
+        if settings["modules"]["sky_players_detector"]["target"] == "WHITELIST":
+            tracked_players = initialize_players()
+
+    if settings["modules"]["movecraft_detector"]["enabled"]:
+        past_player_positions = [None, None]
     
+    #Running phase
+
     execution_flag = True
-    
-    #TODO: Read config from json files
-    #TODO: Accept keyword arguments
-    #TODO: Initialize
 
     while execution_flag:
         player_data = filter_players_from_data(fetch_dynmap_data())
+
+
         if settings["modules"]["player_detector"]["enabled"]:
-            check_for_detected_players(player_data, tracked_players, boundaries)
+            check_for_players_in_boundaries(player_data, tracked_players, boundaries)
 
+        if settings["modules"]["sky_players_detector"]["enabled"]: #TODO: Test this
+            if settings["modules"]["sky_players_detector"]["target"] == "WHITELIST":
+                check_for_sky_players(player_data, y_threshold, tracked_players)
+            else: 
+                check_for_sky_players(player_data, y_threshold)
 
-main()
+if __name__=="__main__":
+    main()
