@@ -1,6 +1,5 @@
 import json
 import requests
-import os
 import math
 
 
@@ -75,7 +74,60 @@ def check_for_sky_players(player_data, y_threshold, tracked_players=None):
             continue
         if player_data["players"][name]["y"] >= y_threshold:
             if tracked_players == None or name in tracked_players:
-                print(name, player_data["players"]["name"])
+                print(name, player_data["players"][name])
+
+def calculate_movecraft(past_player_positions, player_data, movecraft_streak_index, streak_threshold):
+    
+    #Fills past_player_positions with two sets of player coordinates
+    assert len(past_player_positions) < 3
+    if past_player_positions[0]==None:
+        past_player_positions[0]=player_data
+        return
+    elif past_player_positions[0]["timestamp"] == player_data["timestamp"]:
+        return
+    else:
+        if past_player_positions[1]==None:
+            past_player_positions[1] = player_data
+            return
+        elif past_player_positions[1]["timestamp"]==player_data["timestamp"]:
+            return
+        
+        elif past_player_positions[1]["timestamp"]!=player_data["timestamp"]:
+            past_player_positions[0], past_player_positions[1] = past_player_positions[1], player_data
+
+    #check if any player has moved in an exact straight line
+    assert past_player_positions[0]["timestamp"]!=past_player_positions[1]["timestamp"]
+    
+
+    for name in past_player_positions[0]["players"]:
+        if name in past_player_positions[1]["players"]:
+
+            detected_in_0 = name in past_player_positions[0]["players"] and past_player_positions[0]["players"][name] != None
+            detected_in_1 = name in past_player_positions[1]["players"] and past_player_positions[1]["players"][name] != None   
+
+            if detected_in_0 and detected_in_1:
+                x_0=past_player_positions[0]["players"][name]["x"]
+                x_1=past_player_positions[1]["players"][name]["x"]
+                z_0=past_player_positions[0]["players"][name]["z"]
+                z_1=past_player_positions[1]["players"][name]["z"]
+                delta_x = x_0 - x_1
+                delta_z = z_0 - z_1
+
+                if (delta_x == 0 and delta_z != 0) or (delta_x != 0 and delta_z == 0):
+                    if name in movecraft_streak_index:
+                        movecraft_streak_index[name] += 1
+                    else:
+                        movecraft_streak_index[name] = 1
+                else:
+                    movecraft_streak_index.pop(name, "")
+            else:
+                movecraft_streak_index.pop(name, "")
+
+    for name in movecraft_streak_index:
+        if movecraft_streak_index[name] >= streak_threshold:
+            print(name + "might be using a vehicle. He moved straight "+movecraft_streak_index[name]+ "time(s)")
+
+
 
 def initialize_settings():
     with open("config/settings.json", "r") as settings:
@@ -108,6 +160,8 @@ def main():
 
     if settings["modules"]["movecraft_detector"]["enabled"]:
         past_player_positions = [None, None]
+        streak_threshold = settings["modules"]["movecraft_detector"]["streak_threshold"]
+        movecraft_streak_index = dict()
     
     #Running phase
 
@@ -116,15 +170,17 @@ def main():
     while execution_flag:
         player_data = filter_players_from_data(fetch_dynmap_data())
 
-
         if settings["modules"]["player_detector"]["enabled"]:
             check_for_players_in_boundaries(player_data, tracked_players, boundaries)
 
-        if settings["modules"]["sky_players_detector"]["enabled"]: #TODO: Test this
+        if settings["modules"]["sky_players_detector"]["enabled"]:
             if settings["modules"]["sky_players_detector"]["target"] == "WHITELIST":
                 check_for_sky_players(player_data, y_threshold, tracked_players)
             else: 
                 check_for_sky_players(player_data, y_threshold)
+
+        if settings["modules"]["movecraft_detector"]["enabled"]:
+            calculate_movecraft(past_player_positions, player_data, movecraft_streak_index, streak_threshold)
 
 if __name__=="__main__":
     main()

@@ -4,25 +4,20 @@
         {
             "enabled":true
         },
-        
         "sky_players_detector":{
             "enabled":true,
             "target":"ALL",
             "y_threshold": 140
         },
-
-        "movecraft_detector":
-        {
-            "__comment":"TODO",
+        "movecraft_detector":{
             "enabled":true,
-            "target":"ALL"
+            "target":"ALL",
+            "streak_threshold":3
         },
         "player_movement_logger":
         {
             "__comment":"TODO",
-            "enabled":true
-            
+            "enabled":true   
         }
-
     }
 }
