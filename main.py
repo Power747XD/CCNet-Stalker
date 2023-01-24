@@ -5,11 +5,6 @@ import math
 
 DYNMAP_LINK="https://map.ccnetmc.com/nationsmap/standalone/dynmap_world.json"
 
-ENABLE_PREDICTORS = True
-ENABLE_TRACKERS = True
-
- #If it becomes false, the program ends
-
 def fetch_dynmap_data():
     '''Fetches data from the dynamic map URL and returns it in a dict() object'''
 
@@ -50,34 +45,33 @@ def filter_players_from_data(data):
 # Q: Why are fetch_dynmap_data() and strip_dynmap_data() different functions?
 # A: Data stripped by strip_dynmap_data() might me useful in the future for features not yet designed.
 
-def check_for_players_in_boundaries(player_data, tracked_players, boundaries):
+def check_for_players_in_boundaries(player_data, whitelist, boundaries):
+    '''Checks whether any player has moved into any user-defined boundary'''
     for name in player_data["players"]:
-        if player_data["players"][name] != None and name in tracked_players:
+        if player_data["players"][name] != None and name in whitelist:
             for boundary in boundaries:
                 left_border = boundary["upper_left_corner"]["x"]
                 upper_border = boundary["upper_left_corner"]["z"]
                 right_border = boundary["lower_right_corner"]["x"]
                 lower_border = boundary["lower_right_corner"]["z"]
-                #border_type = boundary["type"]
                 if left_border <= player_data["players"][name]["x"] <= right_border and upper_border <= player_data["players"][name]["z"] <= lower_border:
                     print("Player " + name + " has been detected in boundary " + boundary["name"] + " at coordinates " + str(player_data["players"][name]))
 
-def check_for_sky_players(player_data, y_threshold, tracked_players=None):
+def check_for_sky_players(player_data, sky_radar_settings, reference):
     '''Detects player above a config-specified height coordinate.
-    
-    The sky_player_detector has two types of targets:
-    "ALL" reports ALL players above y_threshold;
-    "WHITELIST" reports ONLY players specified in players.json
     '''
+    if player_data["timestamp"]==reference:
+        return
+
     for name in player_data["players"]:
         if player_data["players"][name] == None:
             continue
-        if player_data["players"][name]["y"] >= y_threshold:
-            if tracked_players == None or name in tracked_players:
-                print(name, player_data["players"][name])
+        if player_data["players"][name]["y"] >= sky_radar_settings["y_threshold"]:
+            print("Player "+ name + " has been spotted in the sky at\nx: "+ str(player_data["players"][name]["x"]) + "\nz: " + str(player_data["players"][name]["z"]) + "\nHeight: " + str(player_data["players"][name]["y"]))
 
-def calculate_movecraft(past_player_positions, player_data, movecraft_streak_index, streak_threshold):
-    
+def calculate_movecraft(past_player_positions, player_data, movecraft_streak_index, mvc_d_settings):
+    '''Checks if any players has moved in a straight line. If they have, add the player to movecraft_streak_index or increrase its value by one.
+    If the value is greater than the value set in the config, prints the player, their index and their current coordinates.'''
     #Fills past_player_positions with two sets of player coordinates
     assert len(past_player_positions) < 3
     if past_player_positions[0]==None:
@@ -96,10 +90,9 @@ def calculate_movecraft(past_player_positions, player_data, movecraft_streak_ind
             past_player_positions[0], past_player_positions[1] = past_player_positions[1], player_data
 
     #check if any player has moved in an exact straight line
-    assert past_player_positions[0]["timestamp"]!=past_player_positions[1]["timestamp"]
-    
-
     for name in past_player_positions[0]["players"]:
+        if mvc_d_settings["targets"]!= None and name not in mvc_d_settings["targets"]:
+            continue
         if name in past_player_positions[1]["players"]:
 
             detected_in_0 = name in past_player_positions[0]["players"] and past_player_positions[0]["players"][name] != None
@@ -113,53 +106,74 @@ def calculate_movecraft(past_player_positions, player_data, movecraft_streak_ind
                 delta_x = x_0 - x_1
                 delta_z = z_0 - z_1
 
-                if (delta_x == 0 and delta_z != 0) or (delta_x != 0 and delta_z == 0):
+                deviation_limit = mvc_d_settings["deviation_limit"]
+
+                if (delta_x == deviation_limit and delta_z != deviation_limit) or (delta_x != deviation_limit and delta_z == deviation_limit):
                     if name in movecraft_streak_index:
                         movecraft_streak_index[name] += 1
                     else:
                         movecraft_streak_index[name] = 1
+                elif mvc_d_settings["reset_if_still"] and delta_x==0 and delta_z==0:
+                    continue
                 else:
                     movecraft_streak_index.pop(name, "")
             else:
                 movecraft_streak_index.pop(name, "")
 
     for name in movecraft_streak_index:
-        if movecraft_streak_index[name] >= streak_threshold:
-            print(name + "might be using a vehicle. He moved straight "+movecraft_streak_index[name]+ "time(s)")
-
+        if movecraft_streak_index[name] >= mvc_d_settings["streak_threshold"]:
+            print(name + "might be using a vehicle. He moved straight "+ str(movecraft_streak_index[name])+ "time(s)."+"\n"+str(player_data["players"][name]))
 
 
 def initialize_settings():
     with open("config/settings.json", "r") as settings:
-        return json.load(settings)
+        return json.load(settings)["modules"]
+
+def initialize_players():
+    with open("config/settings.json", "r") as w:
+        whitelists = json.load(w)["whitelists"]
+        for wlist in whitelists:
+            whitelists[wlist]=set(whitelists[wlist])
+        return whitelists
 
 def initialize_boundaries():
     with open("config/boundaries.json","r") as boundaries:
         return json.load(boundaries)["boundaries"]
-
-def initialize_players():
-    with open("config/players.json", "r") as tracked_players:
-        return set(json.load(tracked_players)["single_players"])
 
 def main():
 
     #Initialization phase
 
     settings = initialize_settings()
+    whitelists = initialize_players()
 
-    if settings["modules"]["player_detector"]["enabled"]:
-        tracked_players = initialize_players()
+    if settings["player_detector"]["enabled"]:
         boundaries = initialize_boundaries()
 
-    if settings["modules"]["sky_players_detector"]["enabled"]:
-        y_threshold = settings["modules"]["sky_players_detector"]["y_threshold"]
-        if settings["modules"]["sky_players_detector"]["target"] == "WHITELIST":
-            tracked_players = initialize_players()
+    if settings["sky_radar"]["enabled"]:
+        sky_radar_settings={
+            "y_threshold": settings["sky_radar"]["y_threshold"],
+            "targets":None
+        }
+        if settings["sky_radar"]["target"]=="WHITELIST":
+            sky_radar_settings["targets"]= set(whitelists["sky_radar"])
+        
 
-    if settings["modules"]["movecraft_detector"]["enabled"]:
+    if settings["movecraft_detector"]["enabled"]:
         past_player_positions = [None, None]
-        streak_threshold = settings["modules"]["movecraft_detector"]["streak_threshold"]
+        movecraft_detector_settings={
+            "streak_threshold": settings["movecraft_detector"]["streak_threshold"],
+            "deviation_limit": settings["movecraft_detector"]["deviation_limit"],
+            "reset_if_still": settings["movecraft_detector"]["reset_if_still"],
+            "targets": None
+        }
+        if settings["movecraft_detector"]["target"]=="WHITELIST":
+            movecraft_detector_settings["targets"]=set(whitelists["movecraft_detector"])
         movecraft_streak_index = dict()
+    
+    reference_timestamp=None
+
+    print("The Stalker has been successfully initialized!")
     
     #Running phase
 
@@ -168,17 +182,16 @@ def main():
     while execution_flag:
         player_data = filter_players_from_data(fetch_dynmap_data())
 
-        if settings["modules"]["player_detector"]["enabled"]:
-            check_for_players_in_boundaries(player_data, tracked_players, boundaries)
+        if settings["player_detector"]["enabled"]:
+            check_for_players_in_boundaries(player_data, whitelists["player_detector"], boundaries)
 
-        if settings["modules"]["sky_players_detector"]["enabled"]:
-            if settings["modules"]["sky_players_detector"]["target"] == "WHITELIST":
-                check_for_sky_players(player_data, y_threshold, tracked_players)
-            else: 
-                check_for_sky_players(player_data, y_threshold)
+        if settings["sky_radar"]["enabled"]:
+                check_for_sky_players(player_data, sky_radar_settings, reference_timestamp)
 
-        if settings["modules"]["movecraft_detector"]["enabled"]:
-            calculate_movecraft(past_player_positions, player_data, movecraft_streak_index, streak_threshold)
+        if settings["movecraft_detector"]["enabled"]:
+            calculate_movecraft(past_player_positions, player_data, movecraft_streak_index, movecraft_detector_settings)
+
+        reference_timestamp=player_data["timestamp"]
 
 if __name__=="__main__":
     main()

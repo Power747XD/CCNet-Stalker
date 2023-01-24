@@ -2,9 +2,10 @@
     "modules":{
         "player_detector":
         {
-            "enabled":true
+            "enabled":true,
+            "target":"ALL"
         },
-        "sky_players_detector":{
+        "sky_radar":{
             "enabled":true,
             "target":"ALL",
             "y_threshold": 140
@@ -16,5 +17,10 @@
             "deviation_limit":0,
             "reset_if_still":false
         }
+    },
+    "whitelists":{
+        "player_detector":[],
+        "sky_players_detector":[],
+        "movecraft_detector":[]
     }
 }
