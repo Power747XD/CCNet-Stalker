@@ -12,12 +12,9 @@
         "movecraft_detector":{
             "enabled":true,
             "target":"ALL",
-            "streak_threshold":3
-        },
-        "player_movement_logger":
-        {
-            "__comment":"TODO",
-            "enabled":true   
+            "streak_threshold":3,
+            "deviation_limit":0,
+            "reset_if_still":false
         }
     }
 }

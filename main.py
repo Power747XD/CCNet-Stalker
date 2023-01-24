@@ -147,8 +147,6 @@ def main():
 
     settings = initialize_settings()
 
-    #TODO: Accept keyword arguments
-
     if settings["modules"]["player_detector"]["enabled"]:
         tracked_players = initialize_players()
         boundaries = initialize_boundaries()
