@@ -3,24 +3,27 @@
         "player_detector":
         {
             "enabled":true,
+            "whitelist":[],
+            "boundaries":[
+                {"name":"Test", "upper_border":-8000, "lower_border":1000, "left_border":0, "right_border":15000}
+            ],
             "target":"ALL"
         },
         "sky_radar":{
             "enabled":true,
             "target":"ALL",
+            "whitelist":[],
+            "boundaries":[],
             "y_threshold": 140
         },
-        "movecraft_detector":{
+        "movecraft_radar":{
             "enabled":true,
             "target":"ALL",
+            "whitelist":[],
+            "boundaries":[],
             "streak_threshold":3,
             "deviation_limit":0,
             "reset_if_still":false
         }
-    },
-    "whitelists":{
-        "player_detector":[],
-        "sky_players_detector":[],
-        "movecraft_detector":[]
     }
 }

@@ -1,0 +1,4 @@
+frozendict == 2.3.10
+bs4 == 0.0.1
+requests == 2.31.0
+attrs == 23.1.0
