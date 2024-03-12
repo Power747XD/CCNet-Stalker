@@ -167,10 +167,3 @@ class CCNetMap(la.LiveAtlasMap):
             foundation_date
         )
         return town_object
-
-
-        
-
-
-
-            

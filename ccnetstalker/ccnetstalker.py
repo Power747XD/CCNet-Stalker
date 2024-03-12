@@ -1,5 +1,5 @@
-from config import RunnableUnit
-from scraping import ccnet_dynmap_api as ccda
+from .config_handler import RunnableUnit
+from .scraping import ccnet_dynmap_api as ccda
 from pathlib import Path
 import json
 import time
@@ -27,7 +27,6 @@ def movecraft_radar(config, feed, past, streak):
     deviation_limit = config.attributes["deviation_limit"]
     reset_if_still = config.attributes["reset_if_still"]
     filtered_feed = filter(lambda x: x in config.whitelist, feed)
-    updated_streak = dict()
     
     for c_player in filtered_feed:
         player_found = False
@@ -50,10 +49,12 @@ def movecraft_radar(config, feed, past, streak):
         if not player_found:
             streak.pop(p_player.name, "")
 
-    for name in streak.keys():
-        if streak[name] > streak_threshold:
-            print(name + "might be using a vehicle. He moved straight " + streak[name] +  " times.")
-
+    filtered_streak=streak.copy()
+    if streak_threshold > 1:
+        for name in streak.keys():
+            if streak[name] > streak_threshold:
+                del filtered_streak[name]
+    return filtered_streak
 
 def main():
     p = Path(__file__).parents[1].joinpath("config")
@@ -78,7 +79,8 @@ def main():
 
         past_players = None
         movecraft_streaks = dict()
-        tasks_list[2].run(datafeed.players, past_players, movecraft_streaks)
+        for k, v in tasks_list[2].run(datafeed.players, past_players, movecraft_streaks).items:
+            print(k + " might be using a vehicle. He moved straight " + v + " times.")
 
         print("Tick completed!\n")
 

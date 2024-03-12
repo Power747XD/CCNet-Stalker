@@ -51,8 +51,3 @@ class RunnableUnit:
     
     def run(self, *args, **kwargs):
         return self.func(self.config, *args, **kwargs)
-    
-
-        
-        
-    

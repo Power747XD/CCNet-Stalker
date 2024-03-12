@@ -2,7 +2,7 @@ from scraping import ccnet_dynmap_api as ccda
 from frozendict import frozendict
 import math
 
-def town_taxes(markers_state: frozendict, conf):
+def town_taxes(markers_state: frozendict):
     days_list=list()
     for town in markers_state.values():
         try:
@@ -16,5 +16,5 @@ def town_taxes(markers_state: frozendict, conf):
     return days_list
 
 if __name__=="__main__":
-    towns = town_taxes(ccda.CCNetMap.default_map_factory().fetch_markers(), None)
+    towns = town_taxes(ccda.CCNetMap.default_map_factory().fetch_markers())
     print(sorted(towns, key=lambda i: i["days"]))
