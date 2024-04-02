@@ -22,7 +22,7 @@ class TownSnapshot():
     bank: float = field()
     upkeep: float = field()
     resources: frozendict = field()
-    foundation_date: time.struct_time = field()
+    foundation_date: time.struct_time | None = field()
 
     def get_resource(self, resource):
         return self.resources.get(resource, 0)
@@ -31,7 +31,18 @@ class TownSnapshot():
 class CCNetPlayerSnapshot(la.PlayerSnapshot):
     health: int = field(init=False, default=0)
     armor: int = field(init=False, default=0)
-    visible: bool = field(default=lambda self: self.world == "world")
+
+    @staticmethod
+    def cast_from_la_player(la_player: la.PlayerSnapshot):
+        return CCNetPlayerSnapshot(la_player.name,
+                                   la_player.world,
+                                   la_player.x,
+                                   la_player.y,
+                                   la_player.z,
+                                   la_player.timestamp)
+
+    def is_visible(self):
+        return self.world == "world"
 
 @define
 class CCNetMap(la.LiveAtlasMap):
@@ -60,7 +71,7 @@ class CCNetMap(la.LiveAtlasMap):
 
     def fetch_players_state(self):
         super().fetch_map_state()
-        self.players = (CCNetPlayerSnapshot(p) for p in self.players)
+        self.players = tuple(CCNetPlayerSnapshot.cast_from_la_player(p) for p in self.players)
 
     def fetch_markers(self):
         super().fetch_markers()
@@ -94,12 +105,14 @@ class CCNetMap(la.LiveAtlasMap):
             br.replace_with("\n")
         text = [s.strip("•â€¢ ") for s in text_soup.get_text().split("\n")]
 
+        name = text.pop(0)
+
         if "Member" in text[0]:
             is_capital = False
-            nation = text[0][text[0].rfind(" "):]
+            nation = text[0][text[0].rfind(" "):].strip()
         elif "Capital" in text[0]:
             is_capital = True
-            nation = text[0][text[0].rfind(" "):]
+            nation = text[0][text[0].rfind(" "):].strip()
         else:
             is_capital = False
             nation = ""
@@ -107,34 +120,33 @@ class CCNetMap(la.LiveAtlasMap):
 
         vassal = ""
         if "Vassal of " in text[0]:
-            vassal = text[0][text[0].rfind(" "):]
+            vassal = text[0][text[0].rfind(" "):].strip()
             text.pop(0)
 
-        name = text.pop(0)
         occupier_string = text.pop(0)
-        occupier = "" if occupier_string[-1] == "-" else occupier_string[occupier_string.index("-")+1:].strip()
+        occupier = "" if occupier_string== "" else occupier_string[occupier_string.index("by ")+4:].strip()
         
         mayor_string = text.pop(0)
-        mayor = mayor_string[mayor_string.index("-")+1:].strip()
+        mayor = mayor_string[mayor_string.index(": ")+2:]
 
-        text.pop(0) #TODO: INVESTIGATE WHY IT'S HERE AND EMPTY
+        text.pop(0) #probably a separator
 
         peaceful_string = text.pop(0)
         is_peaceful = "true" in peaceful_string 
         
         trusted_string = text.pop()
-        trusted = tuple(p for p in trusted_string[trusted_string.index("-")+1:].strip().split(", "))
+        trusted = tuple(p for p in trusted_string[trusted_string.index(":")+1:].strip().split(", "))
         
 
         resident_string = text.pop()
-        residents = tuple(p for p in resident_string[resident_string.index("-")+1:].strip().split(", "))
+        residents = tuple(p for p in resident_string[resident_string.index(":")+1:].strip().split(", "))
         
         resources_string = text.pop() #TODO: check if this works
-        resources_list = tuple() if len(resources_string) < 12 else resources_string[12:].split(", ")
-        resources = frozendict({r[r.find(" "):]: int(r[:r.find(" ")]) for r in resources_list})
+        resources_list = tuple() if len(resources_string) < 13 else resources_string[13:].split(", ")
+        resources = frozendict({r[r.find(" ")+1:]: int(r[:r.find(" ")+1]) for r in resources_list})
         
         foundation_string = text.pop()
-        foundation_string = foundation_string[foundation_string.index("-")+1:]
+        foundation_string = foundation_string[foundation_string.index(":")+1:]
         foundation_date = None if foundation_string==" Not set" else time.strptime(foundation_string, " %b %d %Y")
         
         upkeep_string = text.pop()
@@ -143,11 +155,11 @@ class CCNetMap(la.LiveAtlasMap):
         bank_string = text.pop()
         bank = float(CCNetMap.strip_commas(bank_string[bank_string.index("$")+1:]))
         
-        board_string = text.pop() #TODO: check if this works
-        board = "" if len(board_string) < 8 else board_string[8:]
+        board_string = text.pop()
+        board = "" if len(board_string) < 9 else board_string[9:]
         
         cultures_string = text.pop() #TODO: check if this works
-        cultures = tuple() if len(cultures_string) < 10 else cultures_string[10:].split(", ")
+        cultures = tuple() if len(cultures_string) < 11 else tuple(cultures_string[11:].split(", "))
         
         town_object = TownSnapshot(
             name,
